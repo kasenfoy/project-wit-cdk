@@ -4,6 +4,7 @@ import * as lambda from 'monocdk/aws-lambda';
 import * as path from "path";
 import * as apigateway from 'monocdk/aws-apigateway'
 
+// TODO Enabled CORS Manually, need to set it explicitly.
 export class ProjectWitAuth extends cdk.Stack {
     constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
         super(scope, id, props);

@@ -12,7 +12,11 @@ def main(event, context):
     )
     return {
         "statusCode": 200,
-        "headers": {},
+        "headers": {
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+        },
         "body": json.dumps({
             "AccessKeyId": cred['Credentials']['AccessKeyId'],
             "SecretAccessKey": cred['Credentials']['SecretAccessKey'],
