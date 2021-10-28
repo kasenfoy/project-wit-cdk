@@ -3,17 +3,24 @@ import * as iam from 'monocdk/aws-iam';
 import * as lambda from 'monocdk/aws-lambda';
 import * as path from "path";
 import * as apigateway from 'monocdk/aws-apigateway'
+import * as dynamodb from 'monocdk/aws-dynamodb'
+
+
+interface ProjectWitProps extends cdk.StackProps{
+    stage: string,
+}
+
 
 // TODO Enabled CORS Manually, need to set it explicitly.
 export class ProjectWitAuth extends cdk.Stack {
-    constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+    constructor(scope: cdk.App, id: string, props: ProjectWitProps) {
         super(scope, id, props);
 
         const awsAccountId = '326480716745'
         /** IAM Role **/
             // Role Creation (Dynamo User)
-        const dynamoAuthRole = new iam.Role(this, 'dynamo-auth-role', {
-            roleName: 'dynamo-auth-role',
+        const dynamoAuthRole = new iam.Role(this, 'dynamo-auth-role-' + props.stage, {
+            roleName: 'dynamo-auth-role-' + props.stage,
             assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
         });
 
@@ -24,11 +31,7 @@ export class ProjectWitAuth extends cdk.Stack {
             effect: iam.Effect.ALLOW,
             resources: [
                 // 'arn:aws:dynamodb:*:' + awsAccountId + ':table/dev-tasks',
-                'arn:aws:dynamodb:::table/wit-*-*',
-                // 'arn:aws:dynamodb:::table/wit-*-tasks',
-                // 'arn:aws:dynamodb:::table/wit-*-tags',
-                // 'arn:aws:dynamodb:::table/wit-*-users',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints'
+                'arn:aws:dynamodb:*:*:table/project-wit-*-' + props.stage,
             ],
             actions: [
                 "dynamodb:BatchGetItem",
@@ -49,15 +52,8 @@ export class ProjectWitAuth extends cdk.Stack {
             effect: iam.Effect.ALLOW,
             resources: [
                 // 'arn:aws:dynamodb:*:' + awsAccountId + ':table/dev-tasks',
-                'arn:aws:dynamodb:::table/wit-*-*/index/*',
-                'arn:aws:dynamodb:::table/wit-*-*/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tags/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-users/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tasks/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tags/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-users/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints/stream/*',
+                'arn:aws:dynamodb:*:*:table/project-wit-*-' + props.stage + '/index/*',
+                'arn:aws:dynamodb:*:*:table/project-wit-*-' + props.stage + '/stream/*',
             ],
             actions: [
                 "dynamodb:GetShardIterator",
@@ -88,7 +84,7 @@ export class ProjectWitAuth extends cdk.Stack {
         dynamoAuthRole.addToPolicy(dynamoAuthRoleAssumeSelfPolicyStatement);
 
         /** Lambda **/
-        const credentialRetrieverLambda = new lambda.Function(this, 'credential-retriever-lambda', {
+        const credentialRetrieverLambda = new lambda.Function(this, 'credential-retriever-lambda-' + props.stage, {
             code: lambda.Code.fromAsset(path.join(__dirname, 'lambda')),
             handler: 'credential-retriever.main',
             runtime: lambda.Runtime.PYTHON_3_6,
@@ -98,6 +94,8 @@ export class ProjectWitAuth extends cdk.Stack {
             }
         });
 
+
+        /*** API Gateway ***/
         // API Gateway
         // const apiGatewayWitAuth = new apigateway.RestApi(this, 'project-wit-auth');
         // const witAuthIntegration = new apigateway.LambdaIntegration(
@@ -114,7 +112,7 @@ export class ProjectWitAuth extends cdk.Stack {
         // });
 
 
-        const apiGatewayWitAuth = new apigateway.LambdaRestApi(this, 'project-wit-auth', {
+        const apiGatewayWitAuth = new apigateway.LambdaRestApi(this, 'project-wit-auth-' + props.stage, {
             // defaultIntegration: witAuthIntegration,
             handler: credentialRetrieverLambda,
             proxy: false
@@ -134,15 +132,29 @@ export class ProjectWitAuth extends cdk.Stack {
         }))
 
 
-        // // Policy
-        // const allowDynamoInteractionsPolicy = new iam.Policy(this, 'allow-dynamo-interactions-policy', {
-        //     policyName: 'allow-dynamo-interactions-policy',
-        //
-        // })
+        /*** DynamoDB ***/
 
+        // Setup for tables that share common setup.
+        let tableName: Array<string> = ['tasks', 'tags', 'sprints', 'comments', 'users', 'lanes']
+        let tables = new Array<dynamodb.Table>();
 
-        // Policy
-        // const policy = new iam.Policy()
+        // For each tableName
+        tableName.map((name: string) => {
+
+            // Create the table
+            let table = new dynamodb.Table(this, 'project-wit-' + name + '-' + props.stage, {
+                partitionKey: {
+                    name: 'id',
+                    type: dynamodb.AttributeType.STRING,
+                },
+                billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+                tableName: 'project-wit-' + name + '-' + props.stage
+                // TODO Implement Kinesis stream as a nice to have integration: https://docs.aws.amazon.com/cdk/api/latest/docs/aws-dynamodb-readme.html#kinesis-stream
+            })
+
+            // Push it to array
+            tables.push(table);
+        })
 
         // new s3.Bucket(this, 'MyFirstBucket', {
         //     versioned: true

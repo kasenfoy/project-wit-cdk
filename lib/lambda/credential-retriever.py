@@ -8,8 +8,10 @@ def main(event, context):
     roleArn = os.environ['roleArn']
     cred = client.assume_role(
         RoleArn=roleArn,
-        RoleSessionName='string'
+        RoleSessionName='strings',
+        DurationSeconds=(60*60)
     )
+
     return {
         "statusCode": 200,
         "headers": {
@@ -20,6 +22,7 @@ def main(event, context):
         "body": json.dumps({
             "AccessKeyId": cred['Credentials']['AccessKeyId'],
             "SecretAccessKey": cred['Credentials']['SecretAccessKey'],
+            "SessionToken": cred['Credentials']['SessionToken'],
             "Expiration": cred['Credentials']['Expiration'].strftime("%Y-%m-%d %H:%M:%S")
             }),
         "isBase64Encoded": False
