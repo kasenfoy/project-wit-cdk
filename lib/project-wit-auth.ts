@@ -22,12 +22,8 @@ export class ProjectWitAuth extends cdk.Stack {
             sid: 'allowDynamoCrudOperations',
             effect: iam.Effect.ALLOW,
             resources: [
-                // 'arn:aws:dynamodb:*:' + awsAccountId + ':table/dev-tasks',
-                'arn:aws:dynamodb:::table/wit-*-*',
-                // 'arn:aws:dynamodb:::table/wit-*-tasks',
-                // 'arn:aws:dynamodb:::table/wit-*-tags',
-                // 'arn:aws:dynamodb:::table/wit-*-users',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints'
+                // Match all WIT related dynamo tables.
+                'arn:aws:dynamodb:::table/wit-*-*'
             ],
             actions: [
                 "dynamodb:BatchGetItem",
@@ -47,16 +43,12 @@ export class ProjectWitAuth extends cdk.Stack {
             sid: 'allowDynamoStreamAndIndexInformation',
             effect: iam.Effect.ALLOW,
             resources: [
-                // 'arn:aws:dynamodb:*:' + awsAccountId + ':table/dev-tasks',
+                // The resources matched should be in the from of:
+                // awsservice:account:region:table/projectname-stage-tablename/index|stream/*
+                // partial ex. wit-production-tasks will match.
+                // full ex. arn:aws:dynamodb:::table/wit-production-tasks/index/*
                 'arn:aws:dynamodb:::table/wit-*-*/index/*',
-                'arn:aws:dynamodb:::table/wit-*-*/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tags/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-users/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints/index/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tasks/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-tags/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-users/stream/*',
-                // 'arn:aws:dynamodb:::table/wit-*-sprints/stream/*',
+                'arn:aws:dynamodb:::table/wit-*-*/stream/*'
             ],
             actions: [
                 "dynamodb:GetShardIterator",
@@ -68,6 +60,10 @@ export class ProjectWitAuth extends cdk.Stack {
             ]
         })
 
+        // This policy allows the iam role to assume itself.
+        // I have noted that this is needed when a role is responsible for executing a lambda.
+        // The lambda is executed with a derived role and thus needs to inherit permissions
+        // to be able to assume the parent role (self)
         const dynamoAuthRoleAssumeSelfPolicyStatement = new iam.PolicyStatement({
             sid: 'dynamoAuthRoleAssumeSelf',
             effect: iam.Effect.ALLOW,
@@ -81,12 +77,17 @@ export class ProjectWitAuth extends cdk.Stack {
 
 
 
-        // Policy Assignment
+        // Policy Assignment (Add all above policies to the role)
         dynamoAuthRole.addToPolicy(allowDynamoCrudPolicyStatement);
         dynamoAuthRole.addToPolicy(allowDynamoStreamAndIndexInformationPolicyStatement);
         dynamoAuthRole.addToPolicy(dynamoAuthRoleAssumeSelfPolicyStatement);
 
         /** Lambda **/
+
+        // Create a lambda function, this is what is responsible for retrieving the temporary credentials.
+        // The code for this function is in ./lambda/credential-retriever.py
+        // We also must add the role arn that is supposed to be assumed
+        // In this case it is also the role that is executing the lambda
         const credentialRetrieverLambda = new lambda.Function(this, 'credential-retriever-lambda', {
             code: lambda.Code.fromAsset(path.join(__dirname, 'lambda')),
             handler: 'credential-retriever.main',
@@ -102,6 +103,8 @@ export class ProjectWitAuth extends cdk.Stack {
         // const witAuthIntegration = new apigateway.LambdaIntegration(
         //
         // );
+
+        /** API Gateway NEEDS EVALUATING AND COMMENTING **/
         const witAuthIntegration = new apigateway.LambdaIntegration(credentialRetrieverLambda,
             {
                 // authorizationType: apigateway.AuthorizationType.IAM
@@ -122,6 +125,7 @@ export class ProjectWitAuth extends cdk.Stack {
         const authResource = apiGatewayWitAuth.root.addResource('auth');
         const authMethod = authResource.addMethod('GET', witAuthIntegration)
 
+        // This should be a policy (If it is even needed?)
         dynamoAuthRole.attachInlinePolicy(new iam.Policy(this, 'AllowBooks', {
             statements: [
                 new iam.PolicyStatement({
