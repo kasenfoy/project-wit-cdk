@@ -25,17 +25,23 @@ def main(event, context):
     #  * Expiration time
     cred = client.assume_role(
         RoleArn=roleArn,
-        RoleSessionName='string'
+        RoleSessionName='strings',
+        DurationSeconds=(60*60)
     )
 
     # Convert this into the Lambda/API Gateway expected response
     # Then return the formatted data.
     return {
         "statusCode": 200,
-        "headers": {},
+        "headers": {
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+        },
         "body": json.dumps({
             "AccessKeyId": cred['Credentials']['AccessKeyId'],
             "SecretAccessKey": cred['Credentials']['SecretAccessKey'],
+            "SessionToken": cred['Credentials']['SessionToken'],
             "Expiration": cred['Credentials']['Expiration'].strftime("%Y-%m-%d %H:%M:%S")
             }),
         "isBase64Encoded": False
