@@ -4,6 +4,8 @@ import * as lambda from 'monocdk/aws-lambda';
 import * as path from "path";
 import * as apigateway from 'monocdk/aws-apigateway'
 import * as dynamodb from 'monocdk/aws-dynamodb'
+import * as s3 from 'monocdk/aws-s3'
+import {BlockPublicAccess} from "monocdk/aws-s3";
 
 
 interface ProjectWitProps extends cdk.StackProps{
@@ -170,8 +172,28 @@ export class ProjectWitAuth extends cdk.Stack {
             tables.push(table);
         })
 
-        // new s3.Bucket(this, 'MyFirstBucket', {
-        //     versioned: true
-        // });
+        /*** S3 ***/
+        let bucket = new s3.Bucket(this, 'project-wit-' + props.stage, {
+            websiteErrorDocument: 'error.html',
+            websiteIndexDocument: 'index.html',
+            publicReadAccess: true,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+
+
+
+        /*** Outputs ***/
+        // create website url
+        new cdk.CfnOutput(this, 'website-url', {
+            value: bucket.bucketWebsiteUrl,
+            description: 'The URL of the static website',
+            exportName: 'webSiteStaticUrl',
+        });
+
+        new cdk.CfnOutput(this, 'website-auth-api', {
+            value: `https://${apiGatewayWitAuth.restApiId}.execute-api.${this.region}.amazonaws.com/prod/auth`,
+            description: 'The URL of the auth API',
+            exportName: 'webSiteAuthUrl',
+        })
     }
 }
