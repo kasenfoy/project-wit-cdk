@@ -180,20 +180,18 @@ export class ProjectWitAuth extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
 
-
-
         /*** Outputs ***/
         // create website url
         new cdk.CfnOutput(this, 'website-url', {
             value: bucket.bucketWebsiteUrl,
             description: 'The URL of the static website',
-            exportName: 'webSiteStaticUrl',
+            exportName: `projectWit${props.stage}WebSiteStaticUrl`,
         });
 
         new cdk.CfnOutput(this, 'website-auth-api', {
             value: `https://${apiGatewayWitAuth.restApiId}.execute-api.${this.region}.amazonaws.com/prod/auth`,
             description: 'The URL of the auth API',
-            exportName: 'webSiteAuthUrl',
+            exportName: `projectWit${props.stage}WebSiteAuthUrl`,
         })
     }
 }
